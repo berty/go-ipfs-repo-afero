@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	filestore "github.com/ipfs/go-filestore"
 	keystore "github.com/ipfs/go-ipfs-keystore"
 	repo "github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 
 	config "github.com/ipfs/go-ipfs-config"
@@ -20,6 +20,7 @@ type AferoRepo struct {
 	fs     afero.Fs
 	path   string
 	config *config.Config
+	ds     repo.Datastore
 }
 
 var _ repo.Repo = (*AferoRepo)(nil)
@@ -35,11 +36,11 @@ func Open(fs afero.Fs, repoPath string) (repo.Repo, error) {
 
 	r, err := newAferoRepo(fs, repoPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "instanciate afero repo")
 	}
 
 	if err := checkInitialized(r.fs, r.path); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "check repo init")
 	}
 
 	/*
@@ -58,10 +59,7 @@ func Open(fs afero.Fs, repoPath string) (repo.Repo, error) {
 
 	ver, err := GetRepoVersion(r.fs, r.path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fsrepo.ErrNoVersion
-		}
-		return nil, err
+		return nil, errors.Wrap(err, "get repo version")
 	}
 
 	if RepoVersion > ver {
@@ -73,18 +71,18 @@ func Open(fs afero.Fs, repoPath string) (repo.Repo, error) {
 
 	// check repo path, then check all constituent parts.
 	if err := Writable(r.fs, r.path); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "check if repo is writable")
 	}
 
 	if err := r.openConfig(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "open repo config")
+	}
+
+	if err := r.openDatastore(); err != nil {
+		return nil, errors.Wrap(err, "open datastore config")
 	}
 
 	/*
-		if err := r.openDatastore(); err != nil {
-			return nil, err
-		}
-
 		if err := r.openKeystore(); err != nil {
 			return nil, err
 		}
@@ -160,4 +158,16 @@ func (r *AferoRepo) SwarmKey() ([]byte, error) {
 // Close see io.Closer
 func (r *AferoRepo) Close() error {
 	panic("not implemented")
+}
+
+// IsInitialized returns true if the repo is initialized at provided |path|.
+func IsInitialized(fs afero.Fs, path string) bool {
+	/*
+		// packageLock is held to ensure that another caller doesn't attempt to
+		// Init or Remove the repo while this call is in progress.
+		packageLock.Lock()
+		defer packageLock.Unlock()
+	*/
+
+	return isInitializedUnsynced(fs, path)
 }

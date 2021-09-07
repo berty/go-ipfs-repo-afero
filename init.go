@@ -65,15 +65,11 @@ func initSpec(fs afero.Fs, path string, conf map[string]interface{}) error {
 		return nil
 	}
 
-	/*
-		FIXME
-		dsc, err := fsrepo.AnyDatastoreConfig(conf)
-		if err != nil {
-			return err
-		}
-		bytes := dsc.DiskSpec().Bytes()
-	*/
-	bytes := []byte("42")
+	dsc, err := AnyDatastoreConfig(conf)
+	if err != nil {
+		return err
+	}
+	bytes := dsc.DiskSpec().Bytes()
 
 	return afero.WriteFile(fs, fn, bytes, 0600)
 }
