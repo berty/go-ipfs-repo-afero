@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	filestore "github.com/ipfs/go-filestore"
 	keystore "github.com/ipfs/go-ipfs-keystore"
@@ -17,10 +19,12 @@ import (
 // FIXME: port to berty repo template
 
 type AferoRepo struct {
-	fs     afero.Fs
-	path   string
-	config *config.Config
-	ds     repo.Datastore
+	fs       afero.Fs
+	path     string
+	config   *config.Config
+	ds       repo.Datastore
+	keystore keystore.Keystore
+	closed   bool
 }
 
 var _ repo.Repo = (*AferoRepo)(nil)
@@ -82,11 +86,11 @@ func Open(fs afero.Fs, repoPath string) (repo.Repo, error) {
 		return nil, errors.Wrap(err, "open datastore config")
 	}
 
-	/*
-		if err := r.openKeystore(); err != nil {
-			return nil, err
-		}
+	if err := r.openKeystore(); err != nil {
+		return nil, err
+	}
 
+	/*
 		if r.config.Experimental.FilestoreEnabled || r.config.Experimental.UrlstoreEnabled {
 			r.filemgr = filestore.NewFileManager(r.ds, filepath.Dir(r.path))
 			r.filemgr.AllowFiles = r.config.Experimental.FilestoreEnabled
@@ -101,63 +105,119 @@ func Open(fs afero.Fs, repoPath string) (repo.Repo, error) {
 // Config returns the ipfs configuration file from the repo. Changes made
 // to the returned config are not automatically persisted.
 func (r *AferoRepo) Config() (*config.Config, error) {
-	panic("not implemented")
+	/*
+		packageLock.Lock()
+		defer packageLock.Unlock()
+	*/
+	if r.closed {
+		return nil, errors.New("cannot access config, repo not open")
+	}
+
+	return r.config, nil
 }
 
 // BackupConfig creates a backup of the current configuration file using
 // the given prefix for naming.
 func (r *AferoRepo) BackupConfig(prefix string) (string, error) {
-	panic("not implemented")
+	panic("AferoRepo.BackupConfig not implemented")
 }
 
 // SetConfig persists the given configuration struct to storage.
 func (r *AferoRepo) SetConfig(*config.Config) error {
-	panic("not implemented")
+	panic("AferoRepo.SetConfig not implemented")
 }
 
 // SetConfigKey sets the given key-value pair within the config and persists it to storage.
 func (r *AferoRepo) SetConfigKey(key string, value interface{}) error {
-	panic("not implemented")
+	panic("AferoRepo.SetConfigKey not implemented")
 }
 
 // GetConfigKey reads the value for the given key from the configuration in storage.
 func (r *AferoRepo) GetConfigKey(key string) (interface{}, error) {
-	panic("not implemented")
+	panic("AferoRepo.GetConfigKey not implemented")
 }
 
 // Datastore returns a reference to the configured data storage backend.
 func (r *AferoRepo) Datastore() repo.Datastore {
-	panic("not implemented")
+	//packageLock.Lock()
+	d := r.ds
+	//packageLock.Unlock()
+	return d
 }
 
 // GetStorageUsage returns the number of bytes stored.
 func (r *AferoRepo) GetStorageUsage() (uint64, error) {
-	panic("not implemented")
+	panic("AferoRepo.GetStorageUsage not implemented")
 }
 
 // Keystore returns a reference to the key management interface.
 func (r *AferoRepo) Keystore() keystore.Keystore {
-	panic("not implemented")
+	return r.keystore
 }
 
 // FileManager returns a reference to the filestore file manager.
 func (r *AferoRepo) FileManager() *filestore.FileManager {
-	panic("not implemented")
+	panic("AferoRepo.FileManager not implemented")
 }
 
 // SetAPIAddr sets the API address in the repo.
 func (r *AferoRepo) SetAPIAddr(addr ma.Multiaddr) error {
-	panic("not implemented")
+	panic("AferoRepo.SetAPIAddr not implemented")
 }
+
+const swarmKeyFile = "swarm.key"
 
 // SwarmKey returns the configured shared symmetric key for the private networks feature.
 func (r *AferoRepo) SwarmKey() ([]byte, error) {
-	panic("not implemented")
+	// FIXME: filepath usage will produce different paths on different platforms
+	// So if we have a virtual fs used on *NIX then transferred on windows it will not work
+
+	repoPath := filepath.Clean(r.path)
+	spath := filepath.Join(repoPath, swarmKeyFile)
+
+	f, err := r.fs.Open(spath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	return afero.ReadAll(f)
 }
 
 // Close see io.Closer
 func (r *AferoRepo) Close() error {
-	panic("not implemented")
+	/*packageLock.Lock()
+	defer packageLock.Unlock()*/
+
+	if r.closed {
+		return errors.New("repo is closed")
+	}
+
+	/*
+		err := os.Remove(filepath.Join(r.path, apiFile))
+		if err != nil && !os.IsNotExist(err) {
+			log.Warn("error removing api file: ", err)
+		}
+	*/
+
+	if err := r.ds.Close(); err != nil {
+		return err
+	}
+
+	// This code existed in the previous versions, but
+	// EventlogComponent.Close was never called. Preserving here
+	// pending further discussion.
+	//
+	// TODO It isn't part of the current contract, but callers may like for us
+	// to disable logging once the component is closed.
+	// logging.Configure(logging.Output(os.Stderr))
+
+	r.closed = true
+	//return r.lockfile.Close()
+	return nil
 }
 
 // IsInitialized returns true if the repo is initialized at provided |path|.

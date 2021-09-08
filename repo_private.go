@@ -88,3 +88,15 @@ func (r *AferoRepo) readSpec() (string, error) {
 	}
 	return strings.TrimSpace(string(b)), nil
 }
+
+func (r *AferoRepo) openKeystore() error {
+	ksp := filepath.Join(r.path, "keystore")
+	ks, err := NewAferoKeystore(r.fs, ksp)
+	if err != nil {
+		return err
+	}
+
+	r.keystore = ks
+
+	return nil
+}

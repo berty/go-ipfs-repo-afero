@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/ipfs/go-ipfs/repo"
+	"github.com/spf13/afero"
 
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/mount"
@@ -256,6 +260,8 @@ type aferoDatastoreConfig struct {
 
 var _ DatastoreConfig = (*aferoDatastoreConfig)(nil)
 
+var dsfs afero.Fs
+
 // AferoDatastoreConfig returns an afero DatastoreConfig from a spec
 func AferoDatastoreConfig(params map[string]interface{}) (DatastoreConfig, error) {
 	pp, ok := params["path"]
@@ -274,7 +280,7 @@ func AferoDatastoreConfig(params map[string]interface{}) (DatastoreConfig, error
 }
 
 func (dsc *aferoDatastoreConfig) Create(path string) (repo.Datastore, error) {
-	return &aferoDatastore{}, nil
+	return &aferoDatastore{fs: dsfs, path: path + "/" + dsc.path}, nil
 }
 
 func (dsc *aferoDatastoreConfig) DiskSpec() DiskSpec {
@@ -284,43 +290,113 @@ func (dsc *aferoDatastoreConfig) DiskSpec() DiskSpec {
 	}
 }
 
+// Afero version of https://github.com/ipfs/go-datastore/blob/master/examples/fs.go
+
 type aferoDatastore struct {
+	fs   afero.Fs
+	path string
 }
 
 var _ repo.Datastore = (*aferoDatastore)(nil)
 
 func (ads *aferoDatastore) Batch() (ds.Batch, error) {
-	return nil, errors.New("not implemented")
+	return ds.NewBasicBatch(ads), nil
 }
 
 func (ads *aferoDatastore) Close() error {
 	return nil
 }
 
-func (ads *aferoDatastore) Delete(ds.Key) error {
-	return errors.New("not implemented")
+func (ads *aferoDatastore) Delete(key ds.Key) (err error) {
+	fn := ads.KeyFilename(key)
+	if !isFile(ads.fs, fn) {
+		return nil
+	}
+
+	err = ads.fs.Remove(fn)
+	if os.IsNotExist(err) {
+		err = nil // idempotent
+	}
+	return err
 }
 
-func (ads *aferoDatastore) Get(ds.Key) ([]byte, error) {
-	return nil, errors.New("not implemented")
+func (ads *aferoDatastore) Get(key ds.Key) ([]byte, error) {
+	fn := ads.KeyFilename(key)
+	if !isFile(ads.fs, fn) {
+		return nil, ds.ErrNotFound
+	}
+
+	return afero.ReadFile(ads.fs, fn)
 }
 
-func (ads *aferoDatastore) GetSize(ds.Key) (int, error) {
-	return 0, errors.New("not implemented")
+// isFile returns whether given path is a file
+func isFile(fs afero.Fs, path string) bool {
+	finfo, err := fs.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	return !finfo.IsDir()
 }
 
-func (ads *aferoDatastore) Has(ds.Key) (bool, error) {
-	return false, errors.New("not implemented")
+func (ads *aferoDatastore) GetSize(key ds.Key) (int, error) {
+	return ds.GetBackedSize(ads, key)
 }
 
-func (ads *aferoDatastore) Put(ds.Key, []byte) error {
-	return errors.New("not implemented")
+func (ads *aferoDatastore) Has(key ds.Key) (bool, error) {
+	return ds.GetBackedHas(ads, key)
 }
 
-func (ads *aferoDatastore) Query(dsq.Query) (dsq.Results, error) {
-	return nil, errors.New("not implemented")
+func (ads *aferoDatastore) Put(key ds.Key, value []byte) (err error) {
+	fn := ads.KeyFilename(key)
+
+	// mkdirall above.
+	err = ads.fs.MkdirAll(filepath.Dir(fn), 0755)
+	if err != nil {
+		return err
+	}
+
+	return afero.WriteFile(ads.fs, fn, value, 0666)
+}
+
+var ObjectKeySuffix = ".dsobject"
+
+func (ads *aferoDatastore) Query(q dsq.Query) (dsq.Results, error) {
+	results := make(chan dsq.Result)
+
+	walkFn := func(path string, info os.FileInfo, _ error) error {
+		// remove ds path prefix
+		relPath, err := filepath.Rel(ads.path, path)
+		if err == nil {
+			path = filepath.ToSlash(relPath)
+		}
+
+		if info != nil && !info.IsDir() {
+			path = strings.TrimSuffix(path, ObjectKeySuffix)
+			var result dsq.Result
+			key := ds.NewKey(path)
+			result.Entry.Key = key.String()
+			if !q.KeysOnly {
+				result.Entry.Value, result.Error = ads.Get(key)
+			}
+			results <- result
+		}
+		return nil
+	}
+
+	go func() {
+		afero.Walk(ads.fs, ads.path, walkFn)
+		close(results)
+	}()
+	r := dsq.ResultsWithChan(q, results)
+	r = dsq.NaiveQueryApply(q, r)
+	return r, nil
 }
 
 func (ads *aferoDatastore) Sync(ds.Key) error {
-	return errors.New("not implemented")
+	return nil
+}
+
+func (ads *aferoDatastore) KeyFilename(key ds.Key) string {
+	return filepath.Join(ads.path, key.String(), ObjectKeySuffix)
 }
