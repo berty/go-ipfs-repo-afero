@@ -119,9 +119,13 @@ func TestLockedByOthers(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "1" { // child process
 		confdir := os.Args[3]
 		lockedMsg := "locking " + confdir + "/" + lockFile + "\n"
-		if _, err := lock.Lock(fs, confdir, lockFile); err != nil {
+		lock, err := lock.Lock(fs, confdir, lockFile)
+		if err != nil {
 			t.Fatalf("child lock: %v", err)
 		}
+		defer func() {
+			require.NoError(t, lock.Close())
+		}()
 		os.Stdout.WriteString(lockedMsg)
 		time.Sleep(10 * time.Minute)
 		return
