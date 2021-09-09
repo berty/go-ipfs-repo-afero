@@ -100,3 +100,32 @@ func (r *AferoRepo) openKeystore() error {
 
 	return nil
 }
+
+// setConfigUnsynced is for private use.
+func (r *AferoRepo) setConfigUnsynced(updated *config.Config) error {
+	configFilename, err := config.Filename(r.path)
+	if err != nil {
+		return err
+	}
+	// to avoid clobbering user-provided keys, must read the config from disk
+	// as a map, write the updated struct values to the map and write the map
+	// to disk.
+	var mapconf map[string]interface{}
+	if err := ReadConfigFile(r.fs, configFilename, &mapconf); err != nil {
+		return err
+	}
+	m, err := config.ToMap(updated)
+	if err != nil {
+		return err
+	}
+	for k, v := range m {
+		mapconf[k] = v
+	}
+	if err := WriteConfigFile(r.fs, configFilename, mapconf); err != nil {
+		return err
+	}
+	// Do not use `*r.config = ...`. This will modify the *shared* config
+	// returned by `r.Config`.
+	r.config = updated
+	return nil
+}
