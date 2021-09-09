@@ -1,6 +1,6 @@
 module github.com/n0izn0iz/go-ipfs-repo-afero
 
-go 1.16
+go 1.15
 
 require (
 	github.com/apex/log v1.9.0
