@@ -1,4 +1,3 @@
 test:
-	rm -fr test-repo
-	go run .
+	go test ./...
 .PHONY: test

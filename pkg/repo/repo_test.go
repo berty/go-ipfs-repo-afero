@@ -1,14 +1,13 @@
-package main
+package repo_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"runtime/debug"
+	"testing"
 
 	"github.com/ipfs/go-cid"
 	config "github.com/ipfs/go-ipfs-config"
@@ -18,8 +17,10 @@ import (
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/n0izn0iz/go-ipfs-repo-afero/pkg/repo"
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/require"
 )
 
 func serveFS(fs afero.Fs) {
@@ -29,70 +30,58 @@ func serveFS(fs afero.Fs) {
 	http.ListenAndServe("localhost:8080", nil)
 }
 
-func main() {
-	// mem
-	memFS := afero.NewMemMapFs()
-	testFs(memFS, "/mem-repo")
-
-	// fs
-	testFs(afero.NewOsFs(), "./test-repo")
-
-	// serve mem for inspection
-	serveFS(memFS)
+func TestMemMapRepo(t *testing.T) {
+	testFs(t, afero.NewMemMapFs(), "/mem-repo")
 }
 
-func ipfsGet(ctx context.Context, api iface.CoreAPI, cid cid.Cid) []byte {
+func TestOsRepo(t *testing.T) {
+	testFs(t, afero.NewOsFs(), t.TempDir())
+}
+
+func ipfsGet(t *testing.T, ctx context.Context, api iface.CoreAPI, cid cid.Cid) []byte {
 	ipfsNode, err := api.Unixfs().Get(ctx, path.IpfsPath(cid))
-	if err != nil {
-		panic(errors.Wrap(err, "ipfs get"))
-	}
-	defer closeOrPanic(ipfsNode)
+	require.NoError(t, err)
+	defer closeOrPanic(t, ipfsNode)
 
 	file := ipfsfiles.ToFile(ipfsNode)
-	defer closeOrPanic(file)
+	defer closeOrPanic(t, file)
 
 	fileBytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		panic(errors.Wrap(err, "read file"))
-	}
+	require.NoError(t, err)
 
 	return fileBytes
 }
 
-func testFs(fs afero.Fs, rpath string) {
-	fmt.Printf("Testing %s:%s\n", fs.Name(), rpath)
+func testFs(t *testing.T, fs afero.Fs, rpath string) {
+	t.Helper()
 
-	defer func() {
+	t.Logf("Testing %s:%s", fs.Name(), rpath)
+
+	/*defer func() {
 		if a := recover(); a != nil {
 			fmt.Printf("Panic: %v\n", a)
 			debug.PrintStack()
 			fmt.Printf("Spinning http server to examine fs")
 			serveFS(fs)
 		}
-	}()
+	}()*/
 
-	dsfs = fs
+	repo.DsFs = fs
 
-	if IsInitialized(fs, rpath) {
-		panic(fmt.Errorf("repo %s:%s already initialized", fs.Name(), rpath))
-	}
+	initialized := repo.IsInitialized(fs, rpath)
+	require.False(t, initialized)
 
 	conf, err := genConfig()
-	if err != nil {
-		panic(errors.Wrap(err, "gen config"))
-	}
+	require.NoError(t, err)
 
-	if err := Init(fs, rpath, conf); err != nil {
-		panic(errors.Wrap(err, "init repo"))
-	}
+	repo.Init(fs, rpath, conf)
+	require.NoError(t, err)
 
-	repo, err := Open(fs, rpath)
-	if err != nil {
-		panic(errors.Wrap(err, "open repo"))
-	}
+	repo, err := repo.Open(fs, rpath)
+	require.NoError(t, err)
 	defer func() {
 		if err := repo.Close(); err != nil && err.Error() != "repo is closed" {
-			panic(errors.Wrap(err, "close repo"))
+			require.NoError(t, err)
 		}
 	}()
 
@@ -106,26 +95,20 @@ func testFs(fs afero.Fs, rpath string) {
 		Repo:   repo,
 	}
 	inode, err := ipfs_core.NewNode(ctx, buildcfg)
-	if err != nil {
-		panic(errors.Wrap(err, "new ipfs node"))
-	}
-	defer closeOrPanic(inode)
+	require.NoError(t, err)
+	defer closeOrPanic(t, inode)
 
 	// create ipfs api
 	api, err := coreapi.NewCoreAPI(inode, options.Api.FetchBlocks(true))
-	if err != nil {
-		panic(errors.Wrap(err, "new ipfs api"))
-	}
+	require.NoError(t, err)
 
 	// cast cid
 	cid, err := cid.Decode("QmPZ9gcCEpqKTo6aq61g2nXGUhM4iCL3ewB6LDXZCtioEB")
-	if err != nil {
-		panic(errors.Wrap(err, "decode cid"))
-	}
+	require.NoError(t, err)
 
 	// cat ipfs readme
-	fileBytes := ipfsGet(ctx, api, cid)
-	fmt.Println(string(fileBytes))
+	fileBytes := ipfsGet(t, ctx, api, cid)
+	fmt.Println(string(fileBytes)) // FIXME: check that the file is correct
 
 	// declare test data
 	testData := []byte("Hello world!")
@@ -138,16 +121,13 @@ func testFs(fs afero.Fs, rpath string) {
 	fmt.Println("added", ipath)
 
 	// get test data
-	testBytes := ipfsGet(ctx, api, ipath.Cid())
-	if !bytes.Equal(testData, testBytes) {
-		panic(fmt.Errorf(`data diff, expected "%s", got "%s"`, testData, testBytes))
-	}
+	testBytes := ipfsGet(t, ctx, api, ipath.Cid())
+	require.Equal(t, testData, testBytes)
 }
 
-func closeOrPanic(closer io.Closer) {
-	if err := closer.Close(); err != nil {
-		panic(errors.Wrap(err, "close"))
-	}
+func closeOrPanic(t *testing.T, closer io.Closer) {
+	err := closer.Close()
+	require.NoError(t, err)
 }
 
 func genConfig() (*config.Config, error) {

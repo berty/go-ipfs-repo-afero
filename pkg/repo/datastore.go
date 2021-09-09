@@ -1,4 +1,4 @@
-package main
+package repo
 
 import (
 	"bytes"
@@ -260,7 +260,7 @@ type aferoDatastoreConfig struct {
 
 var _ DatastoreConfig = (*aferoDatastoreConfig)(nil)
 
-var dsfs afero.Fs
+var DsFs afero.Fs
 
 // AferoDatastoreConfig returns an afero DatastoreConfig from a spec
 func AferoDatastoreConfig(params map[string]interface{}) (DatastoreConfig, error) {
@@ -280,7 +280,7 @@ func AferoDatastoreConfig(params map[string]interface{}) (DatastoreConfig, error
 }
 
 func (dsc *aferoDatastoreConfig) Create(path string) (repo.Datastore, error) {
-	return &aferoDatastore{fs: dsfs, path: path + "/" + dsc.path}, nil
+	return &aferoDatastore{fs: DsFs, path: path + "/" + dsc.path}, nil
 }
 
 func (dsc *aferoDatastoreConfig) DiskSpec() DiskSpec {

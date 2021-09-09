@@ -1,4 +1,4 @@
-package main
+package repo
 
 import (
 	config "github.com/ipfs/go-ipfs-config"
