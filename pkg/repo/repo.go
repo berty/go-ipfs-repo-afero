@@ -17,7 +17,7 @@ import (
 	config "github.com/ipfs/go-ipfs-config"
 	ma "github.com/multiformats/go-multiaddr"
 
-	lockfile "github.com/n0izn0iz/go-ipfs-repo-afero/pkg/lock"
+	lockfile "github.com/berty/go-ipfs-repo-afero/pkg/lock"
 )
 
 // FIXME: port to berty repo template

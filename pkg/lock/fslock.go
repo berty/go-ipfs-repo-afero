@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/afero"
 
-	lock "github.com/n0izn0iz/go-ipfs-repo-afero/pkg/go4lock"
+	lock "github.com/berty/go-ipfs-repo-afero/pkg/go4lock"
 )
 
 // LockedError is returned as the inner error type when the lock is already

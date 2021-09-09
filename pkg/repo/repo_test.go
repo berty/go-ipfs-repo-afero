@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/berty/go-ipfs-repo-afero/pkg/repo"
 	"github.com/ipfs/go-cid"
 	config "github.com/ipfs/go-ipfs-config"
 	ipfsfiles "github.com/ipfs/go-ipfs-files"
@@ -17,7 +18,6 @@ import (
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
-	"github.com/n0izn0iz/go-ipfs-repo-afero/pkg/repo"
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
