@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/berty/go-ipfs-repo-afero/pkg/atomicfile"
 	config "github.com/ipfs/go-ipfs-config"
 	serialize "github.com/ipfs/go-ipfs-config/serialize"
-	"github.com/n0izn0iz/go-ipfs-repo-afero/pkg/atomicfile"
 	"github.com/spf13/afero"
 )
 

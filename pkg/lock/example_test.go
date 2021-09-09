@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	fslock "github.com/n0izn0iz/go-ipfs-repo-afero/pkg/lock"
+	fslock "github.com/berty/go-ipfs-repo-afero/pkg/lock"
 	"github.com/spf13/afero"
 )
 

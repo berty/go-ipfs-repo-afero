@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	lock "github.com/n0izn0iz/go-ipfs-repo-afero/pkg/lock"
+	lock "github.com/berty/go-ipfs-repo-afero/pkg/lock"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 )

@@ -1,4 +1,4 @@
-module github.com/n0izn0iz/go-ipfs-repo-afero
+module github.com/berty/go-ipfs-repo-afero
 
 go 1.15
 
