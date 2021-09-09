@@ -9,7 +9,7 @@ import (
 	base32 "encoding/base32"
 
 	"github.com/apex/log"
-	keystore "github.com/ipfs/go-ipfs-keystore"
+	keystore "github.com/ipfs/go-ipfs/keystore"
 	ci "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/spf13/afero"
 )
