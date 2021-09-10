@@ -292,7 +292,7 @@ func (r *AferoRepo) SetAPIAddr(addr ma.Multiaddr) error {
 		return nil
 	}
 	// Remove the temp file when rename return error
-	if err1 := os.Remove(filepath.Join(r.path, "."+apiFile+".tmp")); err1 != nil {
+	if err1 := r.fs.Remove(filepath.Join(r.path, "."+apiFile+".tmp")); err1 != nil {
 		return multierr.Append(err, err1)
 	}
 	return err
