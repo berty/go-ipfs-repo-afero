@@ -24,10 +24,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // Lock locks the given file, creating the file if necessary. If the
@@ -69,12 +67,13 @@ var lockFn = lockPortable
 // lockPortable is a portable version not using fcntl. Doesn't handle crashes as gracefully,
 // since it can leave stale lock files.
 func lockPortable(fs afero.Fs, name string) (io.Closer, error) {
-	lf, err := os.CreateTemp("", "testlog")
+	/*lf, err := os.CreateTemp("", "testlog")
 	if err != nil {
 		return nil, errors.Wrap(err, "open log file")
 	}
 	fileEncoder := zapcore.NewJSONEncoder(zap.NewDevelopmentEncoderConfig())
-	l := zap.New(zapcore.NewCore(fileEncoder, zapcore.AddSync(lf), zap.DebugLevel))
+	l := zap.New(zapcore.NewCore(fileEncoder, zapcore.AddSync(lf), zap.DebugLevel))*/
+	l := zap.NewNop()
 
 	l.Debug("locking")
 
