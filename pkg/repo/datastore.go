@@ -293,8 +293,9 @@ func (dsc *aferoDatastoreConfig) DiskSpec() DiskSpec {
 // Afero version of https://github.com/ipfs/go-datastore/blob/master/examples/fs.go
 
 type aferoDatastore struct {
-	fs   afero.Fs
-	path string
+	fs     afero.Fs
+	path   string
+	closed bool
 }
 
 var _ repo.Datastore = (*aferoDatastore)(nil)
@@ -304,6 +305,7 @@ func (ads *aferoDatastore) Batch() (ds.Batch, error) {
 }
 
 func (ads *aferoDatastore) Close() error {
+	ads.closed = true
 	return nil
 }
 
@@ -320,7 +322,17 @@ func (ads *aferoDatastore) Delete(key ds.Key) (err error) {
 	return err
 }
 
+var ErrClosed = errors.New("datastore is closed")
+
 func (ads *aferoDatastore) Get(key ds.Key) ([]byte, error) {
+	return ads.get(key)
+}
+
+func (ads *aferoDatastore) get(key ds.Key) ([]byte, error) {
+	if ads.closed {
+		return nil, ErrClosed
+	}
+
 	fn := ads.KeyFilename(key)
 	if !isFile(ads.fs, fn) {
 		return nil, ds.ErrNotFound
@@ -362,7 +374,8 @@ func (ads *aferoDatastore) Put(key ds.Key, value []byte) (err error) {
 var ObjectKeySuffix = ".dsobject"
 
 func (ads *aferoDatastore) Query(q dsq.Query) (dsq.Results, error) {
-	results := make(chan dsq.Result)
+
+	entries := []dsq.Entry{}
 
 	walkFn := func(path string, info os.FileInfo, _ error) error {
 		// remove ds path prefix
@@ -373,22 +386,25 @@ func (ads *aferoDatastore) Query(q dsq.Query) (dsq.Results, error) {
 
 		if info != nil && !info.IsDir() {
 			path = strings.TrimSuffix(path, ObjectKeySuffix)
-			var result dsq.Result
+			var result dsq.Entry
 			key := ds.NewKey(path)
-			result.Entry.Key = key.String()
+			result.Key = key.String()
 			if !q.KeysOnly {
-				result.Entry.Value, result.Error = ads.Get(key)
+				result.Value, err = ads.get(key)
+				if err != nil {
+					return err
+				}
 			}
-			results <- result
+			entries = append(entries, result)
 		}
 		return nil
 	}
 
-	go func() {
-		afero.Walk(ads.fs, ads.path, walkFn)
-		close(results)
-	}()
-	r := dsq.ResultsWithChan(q, results)
+	if err := afero.Walk(ads.fs, ads.path, walkFn); err != nil {
+		return nil, err
+	}
+
+	r := dsq.ResultsWithEntries(q, entries)
 	r = dsq.NaiveQueryApply(q, r)
 	return r, nil
 }
@@ -398,5 +414,5 @@ func (ads *aferoDatastore) Sync(ds.Key) error {
 }
 
 func (ads *aferoDatastore) KeyFilename(key ds.Key) string {
-	return filepath.Join(ads.path, key.String(), ObjectKeySuffix)
+	return filepath.Join(ads.path, key.String()+ObjectKeySuffix)
 }

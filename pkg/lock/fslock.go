@@ -4,12 +4,16 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/spf13/afero"
-
 	lock "github.com/berty/go-ipfs-repo-afero/pkg/go4lock"
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/spf13/afero"
 )
+
+// log is the fsrepo logger
+var log = logging.Logger("lock")
 
 // LockedError is returned as the inner error type when the lock is already
 // taken.
@@ -21,12 +25,11 @@ func (e LockedError) Error() string {
 
 // Lock creates the lock.
 func Lock(fs afero.Fs, confdir, lockFileName string) (io.Closer, error) {
-	lockFilePath := confdir + "/" + lockFileName
-	//fmt.Println("locking", lockFilePath)
+	lockFilePath := filepath.Join(confdir, lockFileName)
 	lk, err := lock.Lock(fs, lockFilePath)
 	if err != nil {
 		switch {
-		case lockedByOthers(err):
+		case strings.Contains(err.Error(), "locked by other"):
 			return lk, &os.PathError{
 				Op:   "lock",
 				Path: lockFilePath,
@@ -37,7 +40,7 @@ func Lock(fs afero.Fs, confdir, lockFileName string) (io.Closer, error) {
 			return lk, &os.PathError{
 				Op:   "lock",
 				Path: lockFilePath,
-				Err:  LockedError("lock is already held by us: " + err.Error()),
+				Err:  LockedError("lock is already held by us"),
 			}
 		case os.IsPermission(err) || isLockCreatePermFail(err):
 			// lock fails on permissions error
@@ -54,22 +57,31 @@ func Lock(fs afero.Fs, confdir, lockFileName string) (io.Closer, error) {
 	return lk, err
 }
 
+// FileExists check if the file with the given path exits.
+func FileExists(fs afero.Fs, filename string) bool {
+	fi, err := fs.Stat(filename)
+	if fi != nil || (err != nil && !os.IsNotExist(err)) {
+		return true
+	}
+	return false
+}
+
 // Locked checks if there is a lock already set.
 func Locked(fs afero.Fs, confdir, lockFile string) (bool, error) {
-	//fmt.Println("Checking lock")
-	if exists, err := afero.Exists(fs, confdir+"/"+lockFile); err != nil || !exists {
-		//fmt.Printf("File doesn't exist \"%s\":%v\n", confdir+"/"+lockFile, err)
-		return false, err
+	log.Debugf("Checking lock")
+	if !FileExists(fs, filepath.Join(confdir, lockFile)) {
+		log.Debugf("File doesn't exist: %s", filepath.Join(confdir, lockFile))
+		return false, nil
 	}
 
 	lk, err := Lock(fs, confdir, lockFile)
 	if err == nil {
-		//fmt.Println("No one has a lock")
+		log.Debugf("No one has a lock")
 		lk.Close()
 		return false, nil
 	}
 
-	//fmt.Println(err)
+	log.Debug(err)
 
 	if errors.As(err, new(LockedError)) {
 		return true, nil

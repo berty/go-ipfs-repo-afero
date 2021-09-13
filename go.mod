@@ -11,6 +11,7 @@ require (
 	github.com/ipfs/go-ipfs v0.4.20
 	github.com/ipfs/go-ipfs-config v0.14.0
 	github.com/ipfs/go-ipfs-files v0.0.8
+	github.com/ipfs/go-log/v2 v2.1.1
 	github.com/ipfs/interface-go-ipfs-core v0.4.0
 	github.com/libp2p/go-libp2p v0.13.0 // indirect
 	github.com/libp2p/go-libp2p-core v0.8.5
@@ -21,7 +22,8 @@ require (
 	github.com/spf13/afero v1.1.2
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/multierr v1.5.0
-	golang.org/x/sys v0.0.0-20210511113859-b0526f3d8744
+	go.uber.org/zap v1.16.0
+	golang.org/x/sys v0.0.0-20210511113859-b0526f3d8744 // indirect
 )
 
 replace (

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package lock is a file locking library using afero ported from go4.org/lock.
-package lock
+package go4lock
 
 import (
 	"encoding/json"
@@ -24,7 +24,10 @@ import (
 	"os"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/afero"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Lock locks the given file, creating the file if necessary. If the
@@ -66,12 +69,23 @@ var lockFn = lockPortable
 // lockPortable is a portable version not using fcntl. Doesn't handle crashes as gracefully,
 // since it can leave stale lock files.
 func lockPortable(fs afero.Fs, name string) (io.Closer, error) {
+	lf, err := os.CreateTemp("", "testlog")
+	if err != nil {
+		return nil, errors.Wrap(err, "open log file")
+	}
+	fileEncoder := zapcore.NewJSONEncoder(zap.NewDevelopmentEncoderConfig())
+	l := zap.New(zapcore.NewCore(fileEncoder, zapcore.AddSync(lf), zap.DebugLevel))
+
+	l.Debug("locking")
+
 	fi, err := fs.Stat(name)
 	if err == nil && fi.Size() > 0 {
-		st := portableLockStatus(fs, name)
+		st := portableLockStatus(l, fs, name)
 		switch st {
 		case statusLocked:
 			return nil, fmt.Errorf("file %q already locked", name)
+		case statusLockedByOther:
+			return nil, fmt.Errorf("file %q locked by other", name)
 		case statusStale:
 			fs.Remove(name)
 		case statusInvalid:
@@ -87,6 +101,7 @@ func lockPortable(fs afero.Fs, name string) (io.Closer, error) {
 		return nil, fmt.Errorf("cannot write owner pid: %v", err)
 	}
 	return &unlocker{
+		l:        l,
 		f:        f,
 		fs:       fs,
 		abs:      name,
@@ -101,13 +116,14 @@ const (
 	statusLocked
 	statusUnlocked
 	statusStale
+	statusLockedByOther
 )
 
 type pidLockMeta struct {
 	OwnerPID int
 }
 
-func portableLockStatus(fs afero.Fs, path string) lockStatus {
+func portableLockStatus(l *zap.Logger, fs afero.Fs, path string) lockStatus {
 	f, err := fs.Open(path)
 	if err != nil {
 		return statusUnlocked
@@ -127,11 +143,17 @@ func portableLockStatus(fs afero.Fs, path string) lockStatus {
 	}
 	// On unix, os.FindProcess always is true, so we have to send
 	// it a signal to see if it's alive.
+
+	l.Debug("sending signal")
 	if signalZero != nil {
 		if p.Signal(signalZero) != nil {
 			return statusStale
+		} else {
+			return statusLockedByOther
 		}
 	}
+
+	l.Debug("already locked")
 	return statusLocked
 }
 
@@ -143,6 +165,7 @@ var (
 )
 
 type unlocker struct {
+	l        *zap.Logger
 	portable bool
 	fs       afero.Fs
 	f        afero.File
@@ -154,6 +177,8 @@ type unlocker struct {
 }
 
 func (u *unlocker) Close() error {
+	u.l.Debug("removing lock")
+
 	u.once.Do(u.close)
 	return u.err
 }
@@ -177,6 +202,7 @@ func (u *unlocker) close() {
 			// so we'll return that error.
 			u.err = err
 		}
+		u.l.Debug("removed lock")
 		return
 	}
 	// In other implementatioons, it's nice for us to clean up.

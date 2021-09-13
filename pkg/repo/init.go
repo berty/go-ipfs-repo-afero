@@ -10,13 +10,10 @@ const specFn = "datastore_spec"
 // Init initializes a new FSRepo at the given path with the provided config.
 // TODO add support for custom datastores.
 func Init(fs afero.Fs, repoPath string, conf *config.Config) error {
-	/*
-		FIXME
-		// packageLock must be held to ensure that the repo is not initialized more
-		// than once.
-		packageLock.Lock()
-		defer packageLock.Unlock()
-	*/
+	// packageLock must be held to ensure that the repo is not initialized more
+	// than once.
+	packageLock.Lock()
+	defer packageLock.Unlock()
 
 	if isInitializedUnsynced(fs, repoPath) {
 		return nil

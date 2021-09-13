@@ -1,26 +1,26 @@
-package lock_test
+package lock
 
 import (
 	"errors"
 	"fmt"
 
-	fslock "github.com/berty/go-ipfs-repo-afero/pkg/lock"
 	"github.com/spf13/afero"
 )
 
 func ExampleLockedError() {
 	fs := afero.NewMemMapFs()
 
-	tempdir, err := afero.TempDir(fs, "/tmp", "")
+	tmpDir, err := afero.TempDir(fs, "", "")
 	if err != nil {
 		panic(err)
 	}
 
-	_, err = fslock.Lock(fs, tempdir, "foo.lock")
-	fmt.Println("locked:", errors.As(err, new(fslock.LockedError)))
+	_, err = Lock(fs, tmpDir, "foo.lock")
+	fmt.Println("locked:", errors.As(err, new(LockedError)))
 
-	_, err = fslock.Lock(fs, tempdir, "foo.lock")
-	fmt.Println("locked:", errors.As(err, new(fslock.LockedError)))
+	_, err = Lock(fs, tmpDir, "foo.lock")
+	fmt.Println("locked:", errors.As(err, new(LockedError)))
+
 	// Output:
 	// locked: false
 	// locked: true

@@ -60,10 +60,17 @@ var (
 	// The reason for the above is that in standalone mode without the
 	// daemon, `ipfs config` tries to save work by not building the
 	// full IpfsNode, but accessing the Repo directly.
-	//onlyOne repo.OnlyOne
+	onlyOne repo.OnlyOne
 )
 
 func Open(fs afero.Fs, repoPath string) (repo.Repo, error) {
+	fn := func() (repo.Repo, error) {
+		return open(fs, repoPath)
+	}
+	return onlyOne.Open(repoPath, fn)
+}
+
+func open(fs afero.Fs, repoPath string) (repo.Repo, error) {
 	packageLock.Lock()
 	defer packageLock.Unlock()
 

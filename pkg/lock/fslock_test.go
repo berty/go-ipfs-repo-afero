@@ -1,15 +1,13 @@
-package lock_test
+package lock
 
 import (
 	"bufio"
 	"os"
 	"os/exec"
-	"path"
 	"strings"
 	"testing"
 	"time"
 
-	lock "github.com/berty/go-ipfs-repo-afero/pkg/lock"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 )
@@ -17,26 +15,26 @@ import (
 func assertLock(t *testing.T, fs afero.Fs, confdir, lockFile string, expected bool) {
 	t.Helper()
 
-	isLocked, err := lock.Locked(fs, confdir, lockFile)
+	isLocked, err := Locked(fs, confdir, lockFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if isLocked != expected {
-		t.Fatalf("expected %t to be %t at %s/%s", isLocked, expected, confdir, lockFile)
+		t.Fatalf("expected %t to be %t", isLocked, expected)
 	}
 }
 
 func TestLockSimple(t *testing.T) {
-	lockFile := "my-test.lock"
-
 	fs := afero.NewMemMapFs()
 
-	confdir := "./test"
+	lockFile := "my-test.lock"
+	confdir, err := afero.TempDir(fs, "", "")
+	require.NoError(t, err)
 
 	assertLock(t, fs, confdir, lockFile, false)
 
-	lockfile, err := lock.Lock(fs, confdir, lockFile)
+	lockfile, err := Lock(fs, confdir, lockFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +49,7 @@ func TestLockSimple(t *testing.T) {
 
 	// second round of locking
 
-	lockfile, err = lock.Lock(fs, confdir, lockFile)
+	lockfile, err = Lock(fs, confdir, lockFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,23 +64,18 @@ func TestLockSimple(t *testing.T) {
 }
 
 func TestLockMultiple(t *testing.T) {
-	lockFile1 := "test-1.lock"
-	lockFile2 := "test-2.lock"
-
 	fs := afero.NewMemMapFs()
 
-	confdir, err := afero.TempDir(fs, "/tmp", "test")
+	lockFile1 := "test-1.lock"
+	lockFile2 := "test-2.lock"
+	confdir, err := afero.TempDir(fs, "", "")
 	require.NoError(t, err)
 
-	// make sure we start clean
-	_ = fs.Remove(path.Join(confdir, lockFile1))
-	_ = fs.Remove(path.Join(confdir, lockFile2))
-
-	lock1, err := lock.Lock(fs, confdir, lockFile1)
+	lock1, err := Lock(fs, confdir, lockFile1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	lock2, err := lock.Lock(fs, confdir, lockFile2)
+	lock2, err := Lock(fs, confdir, lockFile2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,26 +99,29 @@ func TestLockMultiple(t *testing.T) {
 }
 
 func TestLockedByOthers(t *testing.T) {
-	const (
-		lockFile = "my-test.lock"
-		wantErr  = "someone else has the lock"
-	)
-
 	fs := afero.NewOsFs()
 
-	confdir := t.TempDir()
-	lockedMsg := "locking " + confdir + "/" + lockFile + "\n"
+	const (
+		lockedMsg = "locked\n"
+		lockFile  = "my-test.lock"
+		wantErr   = "someone else has the lock"
+	)
 
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "1" { // child process
 		confdir := os.Args[3]
-		lockedMsg := "locking " + confdir + "/" + lockFile + "\n"
-		if _, err := lock.Lock(fs, confdir, lockFile); err != nil {
+		if _, err := Lock(fs, confdir, lockFile); err != nil {
 			t.Fatalf("child lock: %v", err)
 		}
 		os.Stdout.WriteString(lockedMsg)
 		time.Sleep(10 * time.Minute)
 		return
 	}
+
+	confdir, err := afero.TempDir(fs, "", "go-fs-lock-test")
+	if err != nil {
+		t.Fatalf("creating temporary directory: %v", err)
+	}
+	defer fs.RemoveAll(confdir)
 
 	// Execute a child process that locks the file.
 	cmd := exec.Command(os.Args[0], "-test.run=TestLockedByOthers", "--", confdir)
@@ -151,13 +147,13 @@ func TestLockedByOthers(t *testing.T) {
 	}
 
 	// Parent should not be able to lock the file.
-	_, err = lock.Lock(fs, confdir, lockFile)
+	_, err = Lock(fs, confdir, lockFile)
 	if err == nil {
 		t.Fatalf("parent successfully acquired the lock")
 	}
 	pe, ok := err.(*os.PathError)
 	if !ok {
-		t.Fatalf("wrong error type %T: %s", err, err.Error())
+		t.Fatalf("wrong error type %T", err)
 	}
 	if got := pe.Error(); !strings.Contains(got, wantErr) {
 		t.Fatalf("error %q does not contain %q", got, wantErr)
