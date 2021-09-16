@@ -16,7 +16,6 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/mount"
 	dsq "github.com/ipfs/go-datastore/query"
-	dssync "github.com/ipfs/go-datastore/sync"
 	measure "github.com/ipfs/go-ds-measure"
 )
 
@@ -64,7 +63,6 @@ var datastores map[string]ConfigFromMap
 func init() {
 	datastores = map[string]ConfigFromMap{
 		"mount":   MountDatastoreConfig,
-		"mem":     MemDatastoreConfig,
 		"log":     LogDatastoreConfig,
 		"measure": MeasureDatastoreConfig,
 		"afero":   AferoDatastoreConfig,
@@ -166,23 +164,6 @@ func (c *mountDatastoreConfig) Create(path string) (repo.Datastore, error) {
 		mounts[i].Prefix = m.prefix
 	}
 	return mount.New(mounts), nil
-}
-
-type memDatastoreConfig struct {
-	cfg map[string]interface{}
-}
-
-// MemDatastoreConfig returns a memory DatastoreConfig from a spec
-func MemDatastoreConfig(params map[string]interface{}) (DatastoreConfig, error) {
-	return &memDatastoreConfig{params}, nil
-}
-
-func (c *memDatastoreConfig) DiskSpec() DiskSpec {
-	return nil
-}
-
-func (c *memDatastoreConfig) Create(string) (repo.Datastore, error) {
-	return dssync.MutexWrap(ds.NewMapDatastore()), nil
 }
 
 type logDatastoreConfig struct {
@@ -305,7 +286,7 @@ func (ads *aferoDatastore) Batch() (ds.Batch, error) {
 }
 
 func (ads *aferoDatastore) Close() error {
-	ads.closed = true
+	//ads.closed = true
 	return nil
 }
 

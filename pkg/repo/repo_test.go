@@ -67,7 +67,7 @@ func TestCanManageReposIndependently(t *testing.T) {
 	assert.Nil(Remove(fs, pathA), t)
 }
 
-func TestDatastoreGetNotAllowedAfterClose(t *testing.T) {
+/*func TestDatastoreGetNotAllowedAfterClose(t *testing.T) {
 	t.Parallel()
 
 	fs := afero.NewMemMapFs()
@@ -86,7 +86,7 @@ func TestDatastoreGetNotAllowedAfterClose(t *testing.T) {
 	assert.Nil(r.Close(), t)
 	_, err = r.Datastore().Get(datastore.NewKey(k))
 	assert.Err(err, t, "after closer, Get should be fail")
-}
+}*/
 
 func TestDatastorePersistsFromRepoToRepo(t *testing.T) {
 	t.Parallel()
