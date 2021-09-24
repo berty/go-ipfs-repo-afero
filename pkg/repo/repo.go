@@ -9,7 +9,7 @@ import (
 
 	"github.com/ipfs/go-datastore"
 	filestore "github.com/ipfs/go-filestore"
-	keystore "github.com/ipfs/go-ipfs/keystore"
+	keystore "github.com/ipfs/go-ipfs-keystore"
 	repo "github.com/ipfs/go-ipfs/repo"
 	"github.com/ipfs/go-ipfs/repo/common"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
