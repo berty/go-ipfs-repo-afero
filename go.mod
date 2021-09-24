@@ -1,6 +1,6 @@
 module github.com/berty/go-ipfs-repo-afero
 
-go 1.15
+go 1.16
 
 require (
 	bazil.org/fuse v0.0.0-20200524192727-fb710f7dfd05 // indirect
@@ -41,5 +41,4 @@ replace (
 
 	github.com/peterbourgon/ff/v3 => github.com/moul/ff/v3 v3.0.1 // temporary, see https://github.com/peterbourgon/ff/pull/67, https://github.com/peterbourgon/ff/issues/68
 	golang.org/x/mobile => github.com/aeddi/mobile v0.0.3-silicon // temporary, see https://github.com/golang/mobile/pull/58
-
 )
