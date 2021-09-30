@@ -85,7 +85,7 @@ func open(fs afero.Fs, repoPath string) (repo.Repo, error) {
 
 	r.lockfile, err = lockfile.Lock(r.fs, r.path, repoLock)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "lock repo")
 	}
 	keepLocked := false
 	defer func() {
@@ -121,7 +121,7 @@ func open(fs afero.Fs, repoPath string) (repo.Repo, error) {
 	}
 
 	if err := r.openKeystore(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "open keystore")
 	}
 
 	/*
